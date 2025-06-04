@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <title>打印服务管理器</title>
+  <style>
+    :root {
+      --primary-color: #1890ff;
+      --secondary-color: #13c2c2;
+      --success-color: #52c41a;
+      --warning-color: #faad14;
+      --error-color: #f5222d;
+      --bg-color: #f0f2f5;
+      --card-bg: #ffffff;
+      --text-color: #333333;
+      --text-secondary: #8c8c8c;
+      --border-color: #e8e8e8;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 16px;
+      user-select: none;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 16px;
+    }
+    
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .version {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .button:hover {
+      background-color: #40a9ff;
+    }
+    
+    .button:disabled {
+      background-color: #bae7ff;
+      cursor: not-allowed;
+    }
+    
+    .button.secondary {
+      background-color: #fafafa;
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+    }
+    
+    .button.secondary:hover {
+      background-color: #f5f5f5;
+    }
+    
+    .button.danger {
+      background-color: var(--error-color);
+    }
+    
+    .button.danger:hover {
+      background-color: #ff4d4f;
+    }
+    
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      padding: 16px;
+    }
+    
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .card-title {
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    .status {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+    
+    .status.online,
+    .status.success {
+      background-color: rgba(82, 196, 26, 0.1);
+      color: var(--success-color);
+    }
+    
+    .status.offline,
+    .status.error {
+      background-color: rgba(245, 34, 45, 0.1);
+      color: var(--error-color);
+    }
+    
+    .list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background-color: #fafafa;
+    }
+    
+    .list-item {
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .list-item:last-child {
+      border-bottom: none;
+    }
+    
+    .list-item.error {
+      color: var(--error-color);
+    }
+    
+    .job-message {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      word-break: break-word;
+    }
+    
+    .footer {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+    
+    #print-job-list {
+      max-height: 300px;
+    }
+    
+    /* 端口信息样式 */
+    .port-info {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 4px 8px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+    
+    .port-label {
+      font-size: 14px;
+      margin-right: 8px;
+      color: var(--text-secondary);
+    }
+    
+    .port-value {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-color);
+      flex: 1;
+    }
+    
+    .button.small {
+      padding: 2px 6px;
+      font-size: 12px;
+      min-width: 24px;
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* 复制成功提示动画 */
+    @keyframes copy-success {
+      0% { background-color: var(--success-color); }
+      100% { background-color: var(--primary-color); }
+    }
+    
+    .copy-success {
+      animation: copy-success 1s ease;
+    }
+    
+    /* 客户端显示样式 */
+    .clients-section {
+      margin-top: 8px;
+      border-top: 1px dashed var(--border-color);
+      padding-top: 8px;
+    }
+    
+    .clients-container {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .section-header {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+      padding: 0 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .client-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      margin: 4px 0;
+      font-size: 13px;
+      background-color: #fafafa;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+    
+    .client-icon {
+      margin-right: 8px;
+      color: var(--primary-color);
+    }
+    
+    .client-ip {
+      flex: 1;
+    }
+    
+    .client-time {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-left: 8px;
+      padding: 2px 6px;
+      background-color: rgba(0, 0, 0, 0.04);
+      border-radius: 10px;
+    }
+    
+    .client-message {
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+    
+    /* 服务器地址栏样式 */
+    .server-address {
+      margin: 4px 0 12px;
+      padding: 8px 12px;
+      background-color: #f0f8ff;
+      border-radius: 4px;
+      font-size: 14px;
+      color: var(--text-color);
+      border: 1px solid #d9e8ff;
+    }
+    
+    .address-label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    .address-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    
+    .address-item {
+      display: flex;
+      align-items: center;
+      background-color: rgba(24, 144, 255, 0.05);
+      border: 1px solid rgba(24, 144, 255, 0.2);
+      border-radius: 3px;
+      padding: 4px 8px;
+    }
+    
+    .address-value {
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+    
+    .copy-btn {
+      margin-left: 6px;
+      padding: 2px;
+      background-color: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .copy-btn:hover {
+      color: var(--primary-color);
+    }
+    
+    /* 旋转动画样式 */
+    @keyframes rotating {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    .rotating {
+      animation: rotating 0.5s linear;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1 class="title">打印服务管理器</h1>
+      <span id="app-version" class="version">版本: 1.0.0</span>
+    </div>
+    <div class="actions">
+      <button id="minimize-btn" class="button secondary">最小化到托盘</button>
+      <button id="quit-btn" class="button danger">退出应用</button>
+    </div>
+  </div>
+  
+  <div id="server-address-bar" class="server-address">
+    <span class="address-label">当前服务访问地址:</span>
+    <div class="address-list">
+      <div class="address-item">
+        <span id="server-address-local" class="address-value">localhost:20000</span>
+        <button id="copy-address-local-btn" class="copy-btn" title="复制本地地址">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="address-item">
+        <span id="server-address-loopback" class="address-value">127.0.0.1:20000</span>
+        <button id="copy-address-loopback-btn" class="copy-btn" title="复制回环地址">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="address-item">
+        <span id="server-address-lan" class="address-value">192.168.1.100:20000</span>
+        <button id="copy-address-lan-btn" class="copy-btn" title="复制局域网地址">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">服务器状态</h2>
+        <span id="server-status" class="status offline">未运行</span>
+      </div>
+      <div class="port-info">
+        <span class="port-label">服务端口:</span>
+        <span id="server-port" class="port-value">-</span>
+        <button id="copy-port-btn" class="button small" title="复制端口号">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="actions">
+        <button id="refresh-server-btn" class="button">重启服务器</button>
+      </div>
+      <!-- 添加客户端连接区域 -->
+      <div id="clients-container" class="clients-container">
+        <div class="section-header">
+          已连接客户端
+          <button id="refresh-clients-btn" class="button small" title="刷新客户端状态">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M23 4v6h-6"></path>
+              <path d="M1 20v-6h6"></path>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+              <path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="connected-clients" style="padding: 5px;" class="list">
+          <div class="client-message">暂无连接</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">打印机列表</h2>
+        <!-- <span id="client-status" class="status">已连接设备: 0</span> -->
+      </div>
+      <div id="printer-list" class="list">
+        <div class="list-item">加载中...</div>
+      </div>
+      <div class="actions" style="margin-top: 8px;">
+        <button id="refresh-printers-btn" class="button">刷新打印机</button>
+        <!-- <button id="test-printer-methods-btn" class="button secondary">测试获取方法</button> -->
+      </div>
+    </div>
+    
+    <div class="card" style="grid-column: span 2;">
+      <div class="card-header">
+        <h2 class="card-title">打印任务记录</h2>
+        <button id="clear-jobs-btn" class="button secondary">清空记录</button>
+      </div>
+      <div id="print-job-list" class="list">
+        <!-- 打印任务将在这里动态添加 -->
+      </div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    &copy; 2023 打印服务管理工具 - 系统管理部
+  </div>
+  
+  <script src="./renderer.js"></script>
+</body>
+</html> 
